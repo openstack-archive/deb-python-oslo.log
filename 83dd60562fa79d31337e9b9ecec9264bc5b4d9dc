@@ -1,0 +1,9 @@
+Code-Review+1: Sam Yaple <sam@yaple.net>
+Code-Review+2: Victor Stinner <vstinner@redhat.com>
+Workflow+1: Victor Stinner <vstinner@redhat.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 22 Oct 2015 11:02:55 +0000
+Reviewed-on: https://review.openstack.org/235954
+Project: openstack/deb-python-oslo.log
+Branch: refs/heads/stable/liberty
