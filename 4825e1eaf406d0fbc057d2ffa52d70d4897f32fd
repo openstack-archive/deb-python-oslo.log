@@ -1,0 +1,9 @@
+Code-Review+2: Ronald Bradford <ronald.bradford@gmail.com>
+Code-Review+2: ChangBo Guo(gcb) <glongwave@gmail.com>
+Workflow+1: ChangBo Guo(gcb) <glongwave@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Sun, 12 Jun 2016 07:04:25 +0000
+Reviewed-on: https://review.openstack.org/322705
+Project: openstack/deb-python-oslo.log
+Branch: refs/heads/stable/mitaka
