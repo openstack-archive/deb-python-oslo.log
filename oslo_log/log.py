@@ -79,6 +79,22 @@ def _get_log_file_path(conf, binary=None):
     return None
 
 
+def _iter_loggers():
+    """Iterate on existing loggers."""
+
+    # Sadly, Logger.manager and Manager.loggerDict are not documented,
+    # but there is no logging public function to iterate on all loggers.
+
+    # The root logger is not part of loggerDict.
+    yield logging.getLogger()
+
+    manager = logging.Logger.manager
+    for logger in manager.loggerDict.values():
+        if isinstance(logger, logging.PlaceHolder):
+            continue
+        yield logger
+
+
 class BaseLoggerAdapter(logging.LoggerAdapter):
 
     warn = logging.LoggerAdapter.warning
@@ -196,9 +212,20 @@ class LogConfigError(Exception):
 
 def _load_log_config(log_config_append):
     try:
-        logging.config.fileConfig(log_config_append,
-                                  disable_existing_loggers=False)
-    except (moves.configparser.Error, KeyError) as exc:
+        if not hasattr(_load_log_config, "old_time"):
+            _load_log_config.old_time = 0
+        new_time = os.path.getmtime(log_config_append)
+        if _load_log_config.old_time != new_time:
+            # Reset all existing loggers before reloading config as fileConfig
+            # does not reset non-child loggers.
+            for logger in _iter_loggers():
+                logger.level = logging.NOTSET
+                logger.handlers = []
+                logger.propagate = 1
+            logging.config.fileConfig(log_config_append,
+                                      disable_existing_loggers=False)
+            _load_log_config.old_time = new_time
+    except (moves.configparser.Error, KeyError, os.error) as exc:
         raise LogConfigError(log_config_append, six.text_type(exc))
 
 
@@ -209,6 +236,11 @@ def _mutate_hook(conf, fresh):
     # test for it here.
     if (None, 'debug') in fresh:
         _refresh_root_level(conf.debug, conf.verbose)
+
+    if (None, 'log-config-append') in fresh:
+        _load_log_config.old_time = 0
+    if conf.log_config_append:
+        _load_log_config(conf.log_config_append)
 
 
 def register_options(conf):
