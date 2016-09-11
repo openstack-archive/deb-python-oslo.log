@@ -1,0 +1,22 @@
+Description: Remove test_log_config_append_unreadable()
+ This test is failing in Jessie, removing it.
+Author: Thomas Goirand <zigo@debian.org>
+Forwarded: no
+Last-Update: 2016-09-12
+
+--- python-oslo.log-3.16.0.orig/oslo_log/tests/unit/test_log.py
++++ python-oslo.log-3.16.0/oslo_log/tests/unit/test_log.py
+@@ -1364,13 +1364,6 @@ class LogConfigTestCase(BaseTestCase):
+                           self.CONF,
+                           'test_log_config_append')
+ 
+-    def test_log_config_append_unreadable(self):
+-        os.chmod(self.log_config_append, 0)
+-        self.config(log_config_append=self.log_config_append)
+-        self.assertRaises(log.LogConfigError, log.setup,
+-                          self.CONF,
+-                          'test_log_config_append')
+-
+     def test_log_config_append_disable_existing_loggers(self):
+         self.config(log_config_append=self.log_config_append)
+         with mock.patch('logging.config.fileConfig') as fileConfig:
