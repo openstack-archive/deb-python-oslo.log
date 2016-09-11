@@ -1,0 +1,60 @@
+Description: Fix races in unit tests
+Author: Alexis Lee <lxsli@hpe.com>
+Date: Wed, 24 Aug 2016 13:32:34 +0000 (+0100)
+X-Git-Url: https://review.openstack.org/gitweb?p=openstack%2Foslo.log.git;a=commitdiff_plain;h=45062913ac59d2921c2bd4fd4fefdd81c603de29
+ The code is designed to only mutate if the mtime of log_config_append
+ changes. The tests sometimes go too fast and the mtime doesn't change.
+ .
+ Fix this by always resetting old_time.
+Change-Id: I84cdfece2969069c138f46201d84928f26fe4913
+Origin: upstream, https://review.openstack.org/359786
+Last-Update: 2016-09-12
+
+diff --git a/oslo_log/tests/unit/test_log.py b/oslo_log/tests/unit/test_log.py
+index 3d7f3c3..ba52e41 100644
+--- a/oslo_log/tests/unit/test_log.py
++++ b/oslo_log/tests/unit/test_log.py
+@@ -983,6 +983,11 @@ class FastWatchedFileHandlerTestCase(BaseTestCase):
+ 
+ 
+ class MutateTestCase(BaseTestCase):
++    def setUp(self):
++        super(MutateTestCase, self).setUp()
++        if hasattr(log._load_log_config, 'old_time'):
++            del log._load_log_config.old_time
++
+     def setup_confs(self, *confs):
+         paths = self.create_tempfiles(
+             ('conf_%d' % i, conf) for i, conf in enumerate(confs))
+@@ -1176,6 +1181,8 @@ keys=
+ 
+         yield loginis, confs
+         shutil.copy(confs[1], confs[0])
++        # prevent the mtime ever matching
++        os.utime(self.CONF.log_config_append, (0, 0))
+         self.CONF.mutate_config_files()
+ 
+     @mock.patch.object(logging.config, "fileConfig")
+@@ -1339,11 +1346,12 @@ class LogConfigOptsTestCase(BaseTestCase):
+ 
+ 
+ class LogConfigTestCase(BaseTestCase):
+-
+     def setUp(self):
+         super(LogConfigTestCase, self).setUp()
+         names = self.create_tempfiles([('logging', MIN_LOG_INI)])
+         self.log_config_append = names[0]
++        if 'old_time' in vars(log._load_log_config):
++            del log._load_log_config.old_time
+ 
+     def test_log_config_append_ok(self):
+         self.config(log_config_append=self.log_config_append)
+@@ -1357,7 +1365,7 @@ class LogConfigTestCase(BaseTestCase):
+                           'test_log_config_append')
+ 
+     def test_log_config_append_invalid(self):
+-        names = self.create_tempfiles([('logging', MIN_LOG_INI[5:])])
++        names = self.create_tempfiles([('logging', 'squawk')])
+         self.log_config_append = names[0]
+         self.config(log_config_append=self.log_config_append)
+         self.assertRaises(log.LogConfigError, log.setup,
