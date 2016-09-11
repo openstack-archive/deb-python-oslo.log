@@ -16,6 +16,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from contextlib import contextmanager
 import copy
 import datetime
 import logging
@@ -46,6 +47,20 @@ from oslo_log import _options
 from oslo_log import formatters
 from oslo_log import handlers
 from oslo_log import log
+
+
+MIN_LOG_INI = b"""[loggers]
+keys=root
+
+[formatters]
+keys=
+
+[handlers]
+keys=
+
+[logger_root]
+handlers=
+"""
 
 
 def _fake_context():
@@ -182,18 +197,18 @@ class LogTestBase(BaseTestCase):
 
 class LogHandlerTestCase(BaseTestCase):
     def test_log_path_logdir(self):
-        path = '/some/path'
+        path = os.path.join('some', 'path')
         binary = 'foo-bar'
-        expected = '%s/%s.log' % (path, binary)
+        expected = os.path.join(path, '%s.log' % binary)
         self.config(log_dir=path, log_file=None)
         self.assertEqual(log._get_log_file_path(self.config_fixture.conf,
                          binary=binary),
                          expected)
 
     def test_log_path_logfile(self):
-        path = '/some/path'
+        path = os.path.join('some', 'path')
         binary = 'foo-bar'
-        expected = '%s/%s.log' % (path, binary)
+        expected = os.path.join(path, '%s.log' % binary)
         self.config(log_file=expected)
         self.assertEqual(log._get_log_file_path(self.config_fixture.conf,
                          binary=binary),
@@ -206,14 +221,20 @@ class LogHandlerTestCase(BaseTestCase):
                           binary=prefix))
 
     def test_log_path_logfile_overrides_logdir(self):
-        path = '/some/path'
+        path = os.path.join(os.sep, 'some', 'path')
         prefix = 'foo-bar'
-        expected = '%s/%s.log' % (path, prefix)
-        self.config(log_dir='/some/other/path',
+        expected = os.path.join(path, '%s.log' % prefix)
+        self.config(log_dir=os.path.join('some', 'other', 'path'),
                     log_file=expected)
         self.assertEqual(log._get_log_file_path(self.config_fixture.conf,
                          binary=prefix),
                          expected)
+
+    def test_iter_loggers(self):
+        mylog = logging.getLogger("abc.cde")
+        loggers = list(log._iter_loggers())
+        self.assertIn(logging.getLogger(), loggers)
+        self.assertIn(mylog, loggers)
 
 
 class SysLogHandlersTestCase(BaseTestCase):
@@ -228,8 +249,8 @@ class SysLogHandlersTestCase(BaseTestCase):
         logrecord = logging.LogRecord('name', logging.WARNING, '/tmp', 1,
                                       'Message', None, None)
         expected = logrecord
-        self.assertEqual(self.logger.format(logrecord),
-                         expected.getMessage())
+        self.assertEqual(expected.getMessage(),
+                         self.logger.format(logrecord))
 
 
 @testtools.skipUnless(syslog, "syslog is not available")
@@ -668,8 +689,8 @@ class FancyRecordTestCase(LogTestBase):
         sys.stderr = six.StringIO()
 
         self.colorlog.info("foo")
-        self.assertNotEqual(sys.stderr.getvalue().find("KeyError: 'missing'"),
-                            -1)
+        self.assertNotEqual(-1,
+                            sys.stderr.getvalue().find("KeyError: 'missing'"))
 
         sys.stderr = error
 
@@ -961,31 +982,253 @@ class FastWatchedFileHandlerTestCase(BaseTestCase):
         self.assertTrue(os.path.exists(log_path))
 
 
-class ConfigTestCase(test_base.BaseTestCase):
-    def test_mutate(self):
-        conf = cfg.CONF
-        old_config = ("[DEFAULT]\n"
-                      "debug = false\n")
-        new_config = ("[DEFAULT]\n"
-                      "debug = true\n")
-        paths = self.create_tempfiles([('old', old_config),
-                                       ('new', new_config)])
-        log.register_options(conf)
-        conf(['--config-file', paths[0]])
+class MutateTestCase(BaseTestCase):
+    def setup_confs(self, *confs):
+        paths = self.create_tempfiles(
+            ('conf_%d' % i, conf) for i, conf in enumerate(confs))
+        self.CONF(['--config-file', paths[0]])
+        return paths
+
+    def test_debug(self):
+        paths = self.setup_confs(
+            "[DEFAULT]\ndebug = false\n",
+            "[DEFAULT]\ndebug = true\n")
         log_root = log.getLogger(None).logger
-
-        log._setup_logging_from_conf(conf, 'test', 'test')
-        self.assertEqual(conf.debug, False)
-
-        self.assertEqual(conf.verbose, True)
+        log._setup_logging_from_conf(self.CONF, 'test', 'test')
+        self.assertEqual(False, self.CONF.debug)
+        self.assertEqual(True, self.CONF.verbose)
         self.assertEqual(log.INFO, log_root.getEffectiveLevel())
 
         shutil.copy(paths[1], paths[0])
-        conf.mutate_config_files()
+        self.CONF.mutate_config_files()
 
-        self.assertEqual(conf.debug, True)
-        self.assertEqual(conf.verbose, True)
+        self.assertEqual(True, self.CONF.debug)
+        self.assertEqual(True, self.CONF.verbose)
         self.assertEqual(log.DEBUG, log_root.getEffectiveLevel())
+
+    @mock.patch.object(logging.config, "fileConfig")
+    def test_log_config_append(self, mock_fileConfig):
+        logini = self.create_tempfiles([('log.ini', MIN_LOG_INI)])[0]
+        paths = self.setup_confs(
+            "[DEFAULT]\nlog_config_append = no_exist\n",
+            "[DEFAULT]\nlog_config_append = %s\n" % logini)
+        self.assertRaises(log.LogConfigError, log.setup, self.CONF, '')
+        self.assertFalse(mock_fileConfig.called)
+
+        shutil.copy(paths[1], paths[0])
+        self.CONF.mutate_config_files()
+
+        mock_fileConfig.assert_called_once_with(
+            logini, disable_existing_loggers=False)
+
+    @mock.patch.object(logging.config, "fileConfig")
+    def test_log_config_append_no_touch(self, mock_fileConfig):
+        logini = self.create_tempfiles([('log.ini', MIN_LOG_INI)])[0]
+        self.setup_confs("[DEFAULT]\nlog_config_append = %s\n" % logini)
+        log.setup(self.CONF, '')
+        mock_fileConfig.assert_called_once_with(
+            logini, disable_existing_loggers=False)
+        mock_fileConfig.reset_mock()
+
+        self.CONF.mutate_config_files()
+
+        self.assertFalse(mock_fileConfig.called)
+
+    @mock.patch.object(logging.config, "fileConfig")
+    def test_log_config_append_touch(self, mock_fileConfig):
+        logini = self.create_tempfiles([('log.ini', MIN_LOG_INI)])[0]
+        self.setup_confs("[DEFAULT]\nlog_config_append = %s\n" % logini)
+        log.setup(self.CONF, '')
+        mock_fileConfig.assert_called_once_with(
+            logini, disable_existing_loggers=False)
+        mock_fileConfig.reset_mock()
+
+        # No thread sync going on here, just ensure the mtimes are different
+        time.sleep(0.1)
+        os.utime(logini, None)
+        self.CONF.mutate_config_files()
+
+        mock_fileConfig.assert_called_once_with(
+            logini, disable_existing_loggers=False)
+
+    def mk_log_config(self, data):
+        """Turns a dictConfig-like structure into one suitable for fileConfig.
+
+        The schema is not validated as this is a test helper not production
+        code. Garbage in, garbage out. Particularly, don't try to use filters,
+        fileConfig doesn't support them.
+
+        Handler args must be passed like 'args': (1, 2). dictConfig passes
+        keys by keyword name and fileConfig passes them by position so
+        accepting the dictConfig form makes it nigh impossible to produce the
+        fileConfig form.
+
+        I traverse dicts by sorted keys for output stability but it doesn't
+        matter if defaulted keys are out of order.
+        """
+        lines = []
+        for section in ['formatters', 'handlers', 'loggers']:
+            items = data.get(section, {})
+            keys = sorted(items)
+            skeys = ",".join(keys)
+            if section == 'loggers' and 'root' in data:
+                skeys = ("root," + skeys) if skeys else "root"
+            lines.extend(["[%s]" % section,
+                          "keys=%s" % skeys])
+            for key in keys:
+                lines.extend(["",
+                              "[%s_%s]" % (section[:-1], key)])
+                item = items[key]
+                lines.extend("%s=%s" % (k, item[k]) for k in sorted(item))
+                if section == 'handlers':
+                    if 'args' not in item:
+                        lines.append("args=()")
+                elif section == 'loggers':
+                    lines.append("qualname=%s" % key)
+                    if 'handlers' not in item:
+                        lines.append("handlers=")
+            lines.append("")
+        root = data.get('root', {})
+        if root:
+            lines.extend(["[logger_root]"])
+            lines.extend("%s=%s" % (k, root[k]) for k in sorted(root))
+            if 'handlers' not in root:
+                lines.append("handlers=")
+        return "\n".join(lines)
+
+    def test_mk_log_config_full(self):
+        data = {'loggers': {'aaa': {'level': 'INFO'},
+                            'bbb': {'level': 'WARN',
+                                    'propagate': False}},
+                'handlers': {'aaa': {'level': 'INFO'},
+                             'bbb': {'level': 'WARN',
+                                     'propagate': False,
+                                     'args': (1, 2)}},
+                'formatters': {'aaa': {'level': 'INFO'},
+                               'bbb': {'level': 'WARN',
+                                       'propagate': False}},
+                'root': {'level': 'INFO',
+                         'handlers': 'aaa'},
+                }
+        full = """[formatters]
+keys=aaa,bbb
+
+[formatter_aaa]
+level=INFO
+
+[formatter_bbb]
+level=WARN
+propagate=False
+
+[handlers]
+keys=aaa,bbb
+
+[handler_aaa]
+level=INFO
+args=()
+
+[handler_bbb]
+args=(1, 2)
+level=WARN
+propagate=False
+
+[loggers]
+keys=root,aaa,bbb
+
+[logger_aaa]
+level=INFO
+qualname=aaa
+handlers=
+
+[logger_bbb]
+level=WARN
+propagate=False
+qualname=bbb
+handlers=
+
+[logger_root]
+handlers=aaa
+level=INFO"""
+        self.assertEqual(full, self.mk_log_config(data))
+
+    def test_mk_log_config_empty(self):
+        """Ensure mk_log_config tolerates missing bits"""
+        empty = """[formatters]
+keys=
+
+[handlers]
+keys=
+
+[loggers]
+keys=
+"""
+        self.assertEqual(empty, self.mk_log_config({}))
+
+    @contextmanager
+    def mutate_conf(self, conf1, conf2):
+        loginis = self.create_tempfiles([
+            ('log1.ini', self.mk_log_config(conf1)),
+            ('log2.ini', self.mk_log_config(conf2))])
+        confs = self.setup_confs(
+            "[DEFAULT]\nlog_config_append = %s\n" % loginis[0],
+            "[DEFAULT]\nlog_config_append = %s\n" % loginis[1])
+        log.setup(self.CONF, '')
+
+        yield loginis, confs
+        shutil.copy(confs[1], confs[0])
+        self.CONF.mutate_config_files()
+
+    @mock.patch.object(logging.config, "fileConfig")
+    def test_log_config_append_change_file(self, mock_fileConfig):
+        with self.mutate_conf({}, {}) as (loginis, confs):
+            mock_fileConfig.assert_called_once_with(
+                loginis[0], disable_existing_loggers=False)
+            mock_fileConfig.reset_mock()
+
+        mock_fileConfig.assert_called_once_with(
+            loginis[1], disable_existing_loggers=False)
+
+    def set_root_stream(self):
+        root = logging.getLogger()
+        self.assertEqual(1, len(root.handlers))
+        handler = root.handlers[0]
+        handler.stream = six.StringIO()
+        return handler.stream
+
+    def test_remove_handler(self):
+        fake_handler = {'class': 'logging.StreamHandler',
+                        'args': ()}
+        conf1 = {'root': {'handlers': 'fake'},
+                 'handlers': {'fake': fake_handler}}
+        conf2 = {'root': {'handlers': ''}}
+        with self.mutate_conf(conf1, conf2) as (loginis, confs):
+            stream = self.set_root_stream()
+            root = logging.getLogger()
+            root.error("boo")
+            self.assertEqual("boo\n", stream.getvalue())
+        stream.truncate(0)
+        root.error("boo")
+        self.assertEqual("", stream.getvalue())
+
+    def test_remove_logger(self):
+        fake_handler = {'class': 'logging.StreamHandler'}
+        fake_logger = {'level': 'WARN'}
+        conf1 = {'root': {'handlers': 'fake'},
+                 'handlers': {'fake': fake_handler},
+                 'loggers': {'a.a': fake_logger}}
+        conf2 = {'root': {'handlers': 'fake'},
+                 'handlers': {'fake': fake_handler}}
+        stream = six.StringIO()
+        with self.mutate_conf(conf1, conf2) as (loginis, confs):
+            stream = self.set_root_stream()
+            log = logging.getLogger("a.a")
+            log.info("info")
+            log.warn("warn")
+            self.assertEqual("warn\n", stream.getvalue())
+        stream = self.set_root_stream()
+        log.info("info")
+        log.warn("warn")
+        self.assertEqual("info\nwarn\n", stream.getvalue())
 
 
 class LogConfigOptsTestCase(BaseTestCase):
@@ -1003,8 +1246,8 @@ class LogConfigOptsTestCase(BaseTestCase):
     def test_debug_verbose(self):
         self.CONF(['--debug', '--verbose'])
 
-        self.assertEqual(self.CONF.debug, True)
-        self.assertEqual(self.CONF.verbose, True)
+        self.assertEqual(True, self.CONF.debug)
+        self.assertEqual(True, self.CONF.verbose)
 
     def test_logging_opts(self):
         self.CONF([])
@@ -1013,15 +1256,15 @@ class LogConfigOptsTestCase(BaseTestCase):
         self.assertIsNone(self.CONF.log_file)
         self.assertIsNone(self.CONF.log_dir)
 
-        self.assertEqual(self.CONF.log_date_format,
-                         _options._DEFAULT_LOG_DATE_FORMAT)
+        self.assertEqual(_options._DEFAULT_LOG_DATE_FORMAT,
+                         self.CONF.log_date_format)
 
-        self.assertEqual(self.CONF.use_syslog, False)
+        self.assertEqual(False, self.CONF.use_syslog)
 
     def test_log_file(self):
         log_file = '/some/path/foo-bar.log'
         self.CONF(['--log-file', log_file])
-        self.assertEqual(self.CONF.log_file, log_file)
+        self.assertEqual(log_file, self.CONF.log_file)
 
     def test_log_dir_handlers(self):
         log_dir = tempfile.mkdtemp()
@@ -1046,7 +1289,7 @@ class LogConfigOptsTestCase(BaseTestCase):
             self.assertEqual(2, len(logger.handlers))
             self.assertIsInstance(logger.handlers[0],
                                   logging.handlers.WatchedFileHandler)
-            self.assertEqual(logger.handlers[1], fake_handler)
+            self.assertEqual(fake_handler, logger.handlers[1])
             mock_import.assert_called_once_with(
                 'oslo_messaging.notify.log_handler.PublishErrorsHandler',
                 logging.ERROR)
@@ -1054,17 +1297,17 @@ class LogConfigOptsTestCase(BaseTestCase):
     def test_logfile_deprecated(self):
         logfile = '/some/other/path/foo-bar.log'
         self.CONF(['--logfile', logfile])
-        self.assertEqual(self.CONF.log_file, logfile)
+        self.assertEqual(logfile, self.CONF.log_file)
 
     def test_log_dir(self):
         log_dir = '/some/path/'
         self.CONF(['--log-dir', log_dir])
-        self.assertEqual(self.CONF.log_dir, log_dir)
+        self.assertEqual(log_dir, self.CONF.log_dir)
 
     def test_logdir_deprecated(self):
         logdir = '/some/other/path/'
         self.CONF(['--logdir', logdir])
-        self.assertEqual(self.CONF.log_dir, logdir)
+        self.assertEqual(logdir, self.CONF.log_dir)
 
     def test_default_formatter(self):
         log._setup_logging_from_conf(self.CONF, 'test', 'test')
@@ -1097,22 +1340,9 @@ class LogConfigOptsTestCase(BaseTestCase):
 
 class LogConfigTestCase(BaseTestCase):
 
-    minimal_config = b"""[loggers]
-keys=root
-
-[formatters]
-keys=
-
-[handlers]
-keys=
-
-[logger_root]
-handlers=
-"""
-
     def setUp(self):
         super(LogConfigTestCase, self).setUp()
-        names = self.create_tempfiles([('logging', self.minimal_config)])
+        names = self.create_tempfiles([('logging', MIN_LOG_INI)])
         self.log_config_append = names[0]
 
     def test_log_config_append_ok(self):
@@ -1127,7 +1357,7 @@ handlers=
                           'test_log_config_append')
 
     def test_log_config_append_invalid(self):
-        names = self.create_tempfiles([('logging', self.minimal_config[5:])])
+        names = self.create_tempfiles([('logging', MIN_LOG_INI[5:])])
         self.log_config_append = names[0]
         self.config(log_config_append=self.log_config_append)
         self.assertRaises(log.LogConfigError, log.setup,
@@ -1164,7 +1394,7 @@ class KeywordArgumentAdapterTestCase(BaseTestCase):
     def test_empty_kwargs(self):
         a = log.KeywordArgumentAdapter(self.mock_log, {})
         msg, kwargs = a.process('message', {})
-        self.assertEqual(kwargs, {'extra': {'extra_keys': []}})
+        self.assertEqual({'extra': {'extra_keys': []}}, kwargs)
 
     def test_include_constructor_extras(self):
         key = 'foo'
@@ -1172,17 +1402,17 @@ class KeywordArgumentAdapterTestCase(BaseTestCase):
         data = {key: val}
         a = log.KeywordArgumentAdapter(self.mock_log, data)
         msg, kwargs = a.process('message', {})
-        self.assertEqual(kwargs,
-                         {'extra': {key: val, 'extra_keys': [key]}})
+        self.assertEqual({'extra': {key: val, 'extra_keys': [key]}},
+                         kwargs)
 
     def test_pass_through_exc_info(self):
         a = log.KeywordArgumentAdapter(self.mock_log, {})
         exc_message = 'exception'
         msg, kwargs = a.process('message', {'exc_info': exc_message})
         self.assertEqual(
-            kwargs,
             {'extra': {'extra_keys': []},
-             'exc_info': exc_message})
+             'exc_info': exc_message},
+            kwargs)
 
     def test_update_extras(self):
         a = log.KeywordArgumentAdapter(self.mock_log, {})
@@ -1194,12 +1424,12 @@ class KeywordArgumentAdapterTestCase(BaseTestCase):
 
         msg, kwargs = a.process('message', data)
         self.assertEqual(
-            kwargs,
             {'extra': {'anything': expected['anything'],
                        'context': expected['context'],
                        'extra_keys': sorted(expected.keys()),
                        'instance': expected['instance'],
-                       'resource_uuid': expected['resource_uuid']}})
+                       'resource_uuid': expected['resource_uuid']}},
+            kwargs)
 
     def test_pass_args_to_log(self):
         a = log.KeywordArgumentAdapter(self.mock_log, {})
