@@ -1,0 +1,10 @@
+Code-Review+2: Alexis Lee <lxsli@hpe.com>
+Code-Review+1: Mahito Ogura <m.ogura@ntt.com>
+Code-Review+2: ChangBo Guo(gcb) <glongwave@gmail.com>
+Workflow+1: ChangBo Guo(gcb) <glongwave@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Wed, 14 Sep 2016 10:38:33 +0000
+Reviewed-on: https://review.openstack.org/230885
+Project: openstack/deb-python-oslo.log
+Branch: refs/heads/master
