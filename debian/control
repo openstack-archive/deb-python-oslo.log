@@ -53,8 +53,8 @@ Build-Depends-Indep: bandit,
                      subunit,
                      testrepository,
 Standards-Version: 3.9.8
-Vcs-Browser: https://git.openstack.org/cgit/openstack/deb-python-oslo.log
-Vcs-Git: https://git.openstack.org/openstack/deb-python-oslo.log
+Vcs-Browser: https://git.openstack.org/cgit/openstack/deb-python-oslo.log?h=debian%2Fnewton
+Vcs-Git: https://git.openstack.org/openstack/deb-python-oslo.log -b debian/newton
 Homepage: https://github.com/openstack/oslo.log.git
 
 Package: python-oslo.log
