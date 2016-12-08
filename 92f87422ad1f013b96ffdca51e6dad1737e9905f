@@ -1,0 +1,8 @@
+Code-Review+2: Doug Hellmann <doug@doughellmann.com>
+Workflow+1: Joshua Harlow <jxharlow@godaddy.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 05 Dec 2016 23:00:08 +0000
+Reviewed-on: https://review.openstack.org/403962
+Project: openstack/deb-python-oslo.log
+Branch: refs/heads/master
