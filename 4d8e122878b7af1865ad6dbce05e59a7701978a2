@@ -1,0 +1,11 @@
+Code-Review+1: Dmitry Tantsur <divius.inside@gmail.com>
+Code-Review+1: howard lee <lihongweibj@inspur.com>
+Code-Review+2: Doug Hellmann <doug@doughellmann.com>
+Code-Review+2: Davanum Srinivas (dims) <davanum@gmail.com>
+Workflow+1: Davanum Srinivas (dims) <davanum@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 07 Feb 2017 03:17:42 +0000
+Reviewed-on: https://review.openstack.org/317547
+Project: openstack/deb-python-oslo.log
+Branch: refs/heads/master
