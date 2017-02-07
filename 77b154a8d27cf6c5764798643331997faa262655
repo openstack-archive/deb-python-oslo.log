@@ -1,0 +1,8 @@
+Code-Review+2: Joshua Harlow <jxharlow@godaddy.com>
+Workflow+1: Joshua Harlow <jxharlow@godaddy.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 07 Feb 2017 05:10:15 +0000
+Reviewed-on: https://review.openstack.org/423447
+Project: openstack/deb-python-oslo.log
+Branch: refs/heads/stable/ocata
