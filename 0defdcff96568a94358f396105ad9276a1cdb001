@@ -1,0 +1,10 @@
+Code-Review+2: Davanum Srinivas (dims) <davanum@gmail.com>
+Code-Review+1: Eric Fried <efried@us.ibm.com>
+Code-Review+2: ChangBo Guo(gcb) <glongwave@gmail.com>
+Workflow+1: ChangBo Guo(gcb) <glongwave@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Sun, 21 May 2017 16:10:28 +0000
+Reviewed-on: https://review.openstack.org/459426
+Project: openstack/deb-python-oslo.log
+Branch: refs/heads/master

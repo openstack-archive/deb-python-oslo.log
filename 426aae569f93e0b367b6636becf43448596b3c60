@@ -1,0 +1,10 @@
+Code-Review+2: ChangBo Guo(gcb) <glongwave@gmail.com>
+Code-Review+2: Flavio Percoco <fpercoco@redhat.com>
+Workflow+1: Flavio Percoco <fpercoco@redhat.com>
+Code-Review+1: gordon chung <gord@live.ca>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Sun, 21 May 2017 16:05:44 +0000
+Reviewed-on: https://review.openstack.org/461506
+Project: openstack/deb-python-oslo.log
+Branch: refs/heads/master
