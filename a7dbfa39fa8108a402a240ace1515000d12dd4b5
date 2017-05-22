@@ -1,0 +1,9 @@
+Code-Review+2: Mehdi Abaakouk (sileht) <sileht@redhat.com>
+Code-Review+2: Doug Hellmann <doug@doughellmann.com>
+Workflow+1: ChangBo Guo(gcb) <glongwave@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 22 May 2017 04:32:44 +0000
+Reviewed-on: https://review.openstack.org/462401
+Project: openstack/deb-python-oslo.log
+Branch: refs/heads/master
