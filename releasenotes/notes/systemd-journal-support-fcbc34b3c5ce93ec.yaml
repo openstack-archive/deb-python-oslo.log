@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Systemd native journal support is added. You can enable this in
-    services with the ``use_journal`` flag.

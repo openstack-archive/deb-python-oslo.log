@@ -1,5 +1,0 @@
----
-upgrade:
-  - Configuration option `use_stderr`'s default value is
-    False now, this will avoid same logs on service log and
-    specific log file by option --log-file.
